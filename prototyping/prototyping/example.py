@@ -154,8 +154,8 @@ class Example(QMainWindow):
 
     def resetSettings(self):
         settings = {
-            "timer": "30",        # minutes
-            "lookaway": "30",     # seconds
+            "timer": 30,        # minutes
+            "lookaway": 30,     # seconds
             "ignoredAreas": 0,
         }
 
