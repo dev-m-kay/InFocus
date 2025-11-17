@@ -1,11 +1,15 @@
 import os
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0" # Speeds up OpenCV2 attaching to the a webcamera.
+os.environ["ABSL_MIN_LOG_LEVEL"] = "2"
+import mediapipe as mp
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import Qt
 import cv2
 import numpy as np
 from settingsManager import settings as s
+
+from tracker import gaze
 
 def convert_cv_to_qpixmap(cv_img):
     """ Converts opencv image into qpixmap which is optimized for display """
@@ -34,7 +38,12 @@ class Example(QMainWindow):
         QApplication.setPalette(dark_palette)
 
 
-
+        self.mp_face_mesh = mp.solutions.face_mesh
+        self.faceMesh = self.mp_face_mesh.FaceMesh(
+                    max_num_faces=1,
+                    refine_landmarks=True,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5)
         self.setGeometry(100, 100, 640, 480)
         central_container = QWidget()
         central_container.setFixedSize(640, 480)
@@ -216,7 +225,16 @@ class Example(QMainWindow):
         """ Every call from timer updates the frame on screen. This is where we would process any data too."""
         ret, frame = self.cap.read()
         if ret:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert BGR to RGB
+            frame.flags.writeable = False
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.flip(frame, 1)
+            results = self.faceMesh.process(frame)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            if results.multi_face_landmarks:
+                gaze(frame, results.multi_face_landmarks[0])  # gaze estimatio
+
+   
             pixmap = convert_cv_to_qpixmap(frame)
             self.video_label.setPixmap(pixmap.scaled(self.video_label.size(), Qt.AspectRatioMode.KeepAspectRatio))
         else:

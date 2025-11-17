@@ -120,39 +120,39 @@ def gaze(frame, points):
 		cv2.line(frame, p1, p2, (0, 255, 255), 5)
 
 
-mp_face_mesh = mp.solutions.face_mesh
+# mp_face_mesh = mp.solutions.face_mesh
 
-cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0)
 
-if not cap.isOpened():
-    print("Error: Could not open camera.")
-    exit()
+# if not cap.isOpened():
+#     print("Error: Could not open camera.")
+#     exit()
 
 
-with mp_face_mesh.FaceMesh(
-		max_num_faces=1,
-		refine_landmarks=True,
-		min_detection_confidence=0.5,
-		min_tracking_confidence=0.5) as face_mesh:
+# with mp_face_mesh.FaceMesh(
+# 		max_num_faces=1,
+# 		refine_landmarks=True,
+# 		min_detection_confidence=0.5,
+# 		min_tracking_confidence=0.5) as face_mesh:
 
-	while cap.isOpened():
-		success, image = cap.read()
-		if not success:
-			print("Ignore Empty Camera")
-			continue
+# 	while cap.isOpened():
+# 		success, image = cap.read()
+# 		if not success:
+# 			print("Ignore Empty Camera")
+# 			continue
 
-		image.flags.writeable = False
-		image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-		image = cv2.flip(image, 1)
-		results = face_mesh.process(image)
-		image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+# 		image.flags.writeable = False
+# 		image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+# 		image = cv2.flip(image, 1)
+# 		results = face_mesh.process(image)
+# 		image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-		if results.multi_face_landmarks:
-			gaze(image, results.multi_face_landmarks[0])  # gaze estimation
+# 		if results.multi_face_landmarks:
+# 			gaze(image, results.multi_face_landmarks[0])  # gaze estimation
 
-		cv2.imshow('output window', image)
-		if cv2.waitKey(2) & 0xFF == 27:
-			break
+# 		cv2.imshow('output window', image)
+# 		if cv2.waitKey(2) & 0xFF == 27:
+# 			break
 
-cap.release()
+# cap.release()
 
