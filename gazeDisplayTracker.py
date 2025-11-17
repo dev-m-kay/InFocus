@@ -2,34 +2,62 @@ import os
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0" # Speeds up OpenCV2 attaching to the a webcamera.
 import mediapipe as mp
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 import cv2
 
 class GazeDisplayTracker:
 
-	RELATIVE_SAMPLE_POINTS = [(0.25, 0.20),(0.50, 0.20),(0.75, 0.20),(0.25, 0.50),(0.50, 0.50),(0.75, 0.50),(0.25, 0.80),(0.50, 0.80),(0.75, 0.80)]
-	model = LinearRegression()
+	
 
 	def __init__(self):
 		self.relative = lambda landmark, shape: (int(landmark.x * shape[1]), int(landmark.y * shape[0]))
 		self.relativeT = lambda landmark, shape: (int(landmark.x * shape[1]), int(landmark.y * shape[0]), 0)
+		self.model = Ridge()
+		self.RELATIVE_SAMPLE_POINTS = [(0.25, 0.20),(0.50, 0.20),(0.75, 0.20),(0.25, 0.50),(0.50, 0.50),(0.75, 0.50),(0.25, 0.80),(0.50, 0.80),(0.75, 0.80)]
+
+		self.last_sample = []
+		self.data_points = []
+		self.target_points = []
 
 		self.features = []
+
+		self.hasCalibrated = False
 
 	def generateSamplePoints(self, x_max, y_max):
 		self.x_max = x_max
 		self.y_max = y_max
 		self.sample_points = []
+		self.data_points = []
+		self.target_points = []
 
 		for rsp in self.RELATIVE_SAMPLE_POINTS:
-			self.sample_points.append((rsp[0]*x_max, rsp[1]*y_max))
+			self.sample_points.append((int(rsp[0]*x_max), int(rsp[1]*y_max)))
+
 
 		return self.sample_points
 
-	def modelFit(self,l):
+	def get_sample(self, point_index):
+		if self.last_sample and len(self.last_sample) == 8:
+			target_x, target_y = self.sample_points[point_index]
 
-		self.model.fit(l, self.sample_points)
+			self.data_points.append(self.last_sample.copy())
+			self.target_points.append([target_x, target_y])
+		else:
+			print("Warning: invalid sample, skipping")
 
+	def modelFit(self):
+
+		X = np.array(self.data_points)
+		y = np.array(self.target_points)
+
+		print("X shape:", X.shape)
+		print("y shape:", y.shape)   
+
+		self.model.fit(X, y)
+		self.hasCalibrated = True
+
+	def predict(self):
+		return self.model.predict([self.last_sample])[0]
 
 	def gaze(self, frame, points):
 
@@ -128,6 +156,29 @@ class GazeDisplayTracker:
 			# Account for Head Rotation
 			right_gaze = right_pupil + (eye_pupil2D[0][0] - right_pupil) - (right_head_pose[0][0] - right_pupil)
 
+			mean_x = (left_pupil[0] + right_pupil[0]) / 2
+			mean_y = (left_pupil[1] + right_pupil[1]) / 2
+
+			dx = right_pupil[0] - left_pupil[0]
+			dy = right_pupil[1] - left_pupil[1]
+
+			rx = float(rotation_vector[0][0])
+			ry = float(rotation_vector[1][0])
+			rz = float(rotation_vector[2][0])
+
+			tx = float(translation_vector[0][0])
+			ty = float(translation_vector[1][0])
+			tz = float(translation_vector[2][0])
+
+			self.last_sample = [
+				mean_x, mean_y,     # average pupil center
+				dx, dy,             # eye separation (vergence)
+				gaze[0] - left_pupil[0],
+				gaze[1] - left_pupil[1],
+				right_gaze[0] - right_pupil[0],
+				right_gaze[1] - right_pupil[1],
+			]
+
 			# Drawing Gaze Line
 			p1 = (int(right_pupil[0]), int(right_pupil[1]))
 			p2 = (int(right_gaze[0]), int(right_gaze[1]))
@@ -142,5 +193,6 @@ class GazeDisplayTracker:
 			p1 = (int(mean_x), int(mean_y))
 			p2 = (int(gaze_mean_x), int(gaze_mean_y))
 			cv2.line(frame, p1, p2, (0, 255, 255), 5)
+		
 
 

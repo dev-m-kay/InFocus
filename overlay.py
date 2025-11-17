@@ -18,34 +18,101 @@ class OverlayWindow(QWidget):
             Qt.WindowType.WindowTransparentForInput  # Makes the overlay transparent to input
         )
 
-        #styles
-
-        button_style = """
-            QPushButton {
-                background-color: #3a3a3a;
-                color: white;
-                border-radius: 5px;
-                padding: 6px 12px;
-                margin: 0px 10px 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #5a5a5a;
-            }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
-            }
-        """
-
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.showFullScreen()
+
+        self.drawn_point = QPointF(0,0)
+
+        self.look_points = []
+        self.look_point = QPoint(0,0)
+
+        self.drawLook = True
         
-        self.notLookingFlag = False
+        self.sample_index = 0
+        self.repeat_index = 0
+        self.sample_function = None
+        self.samples = None
+
+        self.sample_points = []
+
+        self.isCalibrating = False
+        
+        self.not_looking_flag = False
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.nextPoint)  
 
         self.show()
+    
+    def updateLookPoint(self, x,y):
+
+        self.look_points.append([x,y])
+
+        if len(self.look_points) > 5:
+            self.look_points.pop(0)
+
+        count = 0
+        ax = 0
+        ay = 0
+        for point in self.look_points:
+            count += 1
+            ax += point[0]
+            ay += point[1]
+    
+        self.look_point = QPoint(int(ax/count),int(ay/count))
+        self.update()
+
+    def startCalibration(self,sample_points,sample_function,end_function):
+
+        self.isCalibrating = True
+        self.sample_points = sample_points
+        self.sample_index = 0
+        self.repeat_index = 0
+
+        self.sample_function = sample_function
+        self.end_function = end_function
+
+        self.drawn_point = QPointF(*self.sample_points[self.sample_index])
+
+        self.update()
+        QTimer.singleShot(1000, self.nextSample)  # 1 second interval
+
+    def nextSample(self):
+
+        self.sample_function(self.sample_index)
+        self.repeat_index += 1
+
+        if self.repeat_index >= 9:
+
+            QTimer.singleShot(100, self.nextPoint)
+            return
+
+        QTimer.singleShot(100, self.nextSample)
+    
+    def nextPoint(self):
+
+        self.sample_function(self.sample_index)
+        self.sample_index += 1
+        print(self.sample_index)
+        print(len(self.sample_points))
+
+        if self.sample_index >= len(self.sample_points):
+            self.end_function()
+            self.isCalibrating = False
+            self.timer.stop()
+            self.update()
+            return
+
+        self.drawn_point = QPointF(*self.sample_points[self.sample_index])
+
+        self.repeat_index = 0
+        QTimer.singleShot(1000, self.nextSample)  # 1 second interval
+        self.update()
+
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        if self.notLookingFlag:
+        if self.not_looking_flag:
             
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -54,6 +121,12 @@ class OverlayWindow(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(self.rect().adjusted(50, 50, -50, -50)) # Adjust to draw within bounds
 
-        # painter.setBrush(QColor(255, 0, 0, 100))  # RGBA color, 100 for alpha (transparency)
-        # painter.setPen(Qt.PenStyle.NoPen)
-        # painter.drawEllipse(QPoint(int(self.sampleX), int(self.sampleY)), 20, 20)
+        if self.isCalibrating:
+            painter.setBrush(QColor(255, 0, 0, 100))  # RGBA color, 100 for alpha (transparency)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(self.drawn_point, 20, 20)
+        
+        if self.drawLook:
+            painter.setBrush(QColor(255, 255, 0, 100))  # RGBA color, 100 for alpha (transparency)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(self.look_point, 20, 20)

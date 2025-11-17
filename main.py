@@ -4,12 +4,13 @@ os.environ["ABSL_MIN_LOG_LEVEL"] = "2"
 import mediapipe as mp
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import *
 import cv2
 import numpy as np
 from settingsManager import settings as s
 
 from gazeDisplayTracker import GazeDisplayTracker
+from overlay import OverlayWindow
 
 def convert_cv_to_qpixmap(cv_img):
     """ Converts opencv image into qpixmap which is optimized for display """
@@ -40,13 +41,18 @@ class Main(QMainWindow):
 
         self.gaze_display_tracker = GazeDisplayTracker()
 
+        self.overlay_window = OverlayWindow()
+        self.show()
 
+        self.gaze_display_tracker.generateSamplePoints(self.overlay_window.width(), self.overlay_window.height())
+        
+    
         self.mp_face_mesh = mp.solutions.face_mesh
         self.faceMesh = self.mp_face_mesh.FaceMesh(
                     max_num_faces=1,
                     refine_landmarks=True,
-                    min_detection_confidence=0.5,
-                    min_tracking_confidence=0.5)
+                    min_detection_confidence=0.7,
+                    min_tracking_confidence=0.7)
         self.setGeometry(100, 100, 640, 480)
         central_container = QWidget()
         central_container.setFixedSize(640, 480)
@@ -203,6 +209,8 @@ class Main(QMainWindow):
         self.cap = cv2.VideoCapture(0)
         self.timer = self.startTimer(30)
 
+        QTimer.singleShot(5000,self.startCali)
+
         self.show()
 
     def make_row(self, label_text, widget):
@@ -223,6 +231,8 @@ class Main(QMainWindow):
 
         return row
 
+    def startCali(self):
+        self.overlay_window.startCalibration(self.gaze_display_tracker.sample_points, self.gaze_display_tracker.get_sample, self.gaze_display_tracker.modelFit)
 
     def timerEvent(self, event):
         """ Every call from timer updates the frame on screen. This is where we would process any data too."""
@@ -240,6 +250,13 @@ class Main(QMainWindow):
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pixmap = convert_cv_to_qpixmap(frame)
             self.video_label.setPixmap(pixmap.scaled(self.video_label.size(), Qt.AspectRatioMode.KeepAspectRatio))
+
+            if self.gaze_display_tracker.hasCalibrated:
+                
+
+                p = self.gaze_display_tracker.predict()
+                self.overlay_window.updateLookPoint(int(p[0]), int(p[1]))
+
         else:
             frame = np.zeros((480, 640, 3), dtype=np.uint8) # creates blank frame
             frame = cv2.putText(
@@ -297,6 +314,7 @@ class Main(QMainWindow):
 
     def closeEvent(self, event):
         self.cap.release() # Release camera resources
+        self.overlay_window.close()
 
 class Popup(QMainWindow):
     """Creates popup window."""
