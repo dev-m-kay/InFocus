@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from settingsManager import settings as s
 
-from tracker import gaze
+from gazeDisplayTracker import GazeDisplayTracker
 
 def convert_cv_to_qpixmap(cv_img):
     """ Converts opencv image into qpixmap which is optimized for display """
@@ -18,7 +18,7 @@ def convert_cv_to_qpixmap(cv_img):
     q_img = QImage(cv_img.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
     return QPixmap.fromImage(q_img)
 
-class Example(QMainWindow):
+class Main(QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -36,6 +36,9 @@ class Example(QMainWindow):
         dark_palette.setColor(QPalette.ColorRole.Highlight, QColor(80, 80, 80))
         dark_palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
         QApplication.setPalette(dark_palette)
+
+
+        self.gaze_display_tracker = GazeDisplayTracker()
 
 
         self.mp_face_mesh = mp.solutions.face_mesh
@@ -232,9 +235,9 @@ class Example(QMainWindow):
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
             if results.multi_face_landmarks:
-                gaze(frame, results.multi_face_landmarks[0])  # gaze estimatio
+                self.gaze_display_tracker.gaze(frame, results.multi_face_landmarks[0])  # gaze estimatio
 
-   
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pixmap = convert_cv_to_qpixmap(frame)
             self.video_label.setPixmap(pixmap.scaled(self.video_label.size(), Qt.AspectRatioMode.KeepAspectRatio))
         else:
@@ -333,5 +336,5 @@ class Popup(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication([])
-    window = Example()
+    window = Main()
     app.exec()
