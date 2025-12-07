@@ -130,3 +130,7 @@ class OverlayWindow(QWidget):
             painter.setBrush(QColor(255, 255, 0, 100))  # RGBA color, 100 for alpha (transparency)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(self.look_point, 20, 20)
+
+    def getCurrentGaze(self):
+        return self.look_point.x(), self.look_point.y()
+

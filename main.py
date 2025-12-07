@@ -89,6 +89,23 @@ class Main(QMainWindow):
         """)
         self.settings_button.raise_()
 
+        # calibration button
+        self.start_cali_button = QPushButton("Start Calibration", video_container)
+        self.start_cali_button.setGeometry(10, 10, 100, 30)
+        self.start_cali_button.clicked.connect(self.startCali)
+        self.start_cali_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgb(50,50,50);
+                color: white;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: rgb(70,70,70);
+            }
+        """)
+        self.start_cali_button.raise_()
+
+
         self.settings_panel = QWidget(central_container)
         self.settings_panel.setGeometry(0, 0, 640, 480)
         self.settings_panel.setContentsMargins(0,0,0,0)
@@ -170,7 +187,11 @@ class Main(QMainWindow):
         row = self.make_row("Ignored Areas: ", self.ignored_setting)
         settings_layout.addWidget(row)
 
-
+        self.lookaway_seconds = int(self.lookaway_setting.text()) if self.lookaway_setting.text() else 30  
+        self.lookaway_timer = 0
+        self.lookaway_active = False
+        self.popup_open = False
+        self.last_seen_on_screen = True
 
         self.setting_reset = QPushButton("Reset to Default")
         self.setting_reset.clicked.connect(self.resetSettings)
@@ -209,7 +230,7 @@ class Main(QMainWindow):
         self.cap = cv2.VideoCapture(0)
         self.timer = self.startTimer(30)
 
-        QTimer.singleShot(5000,self.startCali)
+        #QTimer.singleShot(5000,self.startCali)
 
         self.show()
 
@@ -256,6 +277,8 @@ class Main(QMainWindow):
 
                 p = self.gaze_display_tracker.predict()
                 self.overlay_window.updateLookPoint(int(p[0]), int(p[1]))
+                self.lookawayLogic(int(p[0]), int(p[1]))
+
 
         else:
             frame = np.zeros((480, 640, 3), dtype=np.uint8) # creates blank frame
@@ -313,18 +336,86 @@ class Main(QMainWindow):
 
 
     def closeEvent(self, event):
-        self.cap.release() # Release camera resources
+        self.cap.release()
         self.overlay_window.close()
+
+    def lookawayLogic(self, gaze_x, gaze_y):
+        """Handles look-away detection, timing, ignored zones, and popup triggering."""
+
+        screen_w = self.overlay_window.width()
+        screen_h = self.overlay_window.height()
+
+        ignore = self.ignored_setting.currentIndex()
+        ignoring_left = (ignore == 1)
+        ignoring_right = (ignore == 2)
+
+        # Checks if gaze is off-screen
+        off_left = gaze_x < 0
+        off_right = gaze_x > screen_w
+        off_top = gaze_y < 0
+        off_bottom = gaze_y > screen_h
+
+        if off_left and ignoring_left:
+            off_left = False
+        if off_right and ignoring_right:
+            off_right = False
+
+        on_screen_now = not (off_left or off_right or off_top or off_bottom)
+
+        try:
+            self.lookaway_seconds = int(self.lookaway_setting.text())
+        except:
+            self.lookaway_seconds = 30
+
+        # -----------------------------
+        #    LOOKAWAY / RETURN LOGIC
+        # -----------------------------
+        if on_screen_now:
+            self.last_seen_on_screen = True
+            self.lookaway_timer = 0
+            self.overlay_window.not_looking_flag = False
+            return
+
+        if not self.last_seen_on_screen:
+            self.lookaway_timer += 1
+        else:
+            self.lookaway_timer = 1
+
+        self.last_seen_on_screen = False
+        self.overlay_window.not_looking_flag = True
+        self.overlay_window.update()
+
+        elapsed_seconds = self.lookaway_timer * 0.03
+
+        if elapsed_seconds >= self.lookaway_seconds and not self.popup_open:
+            self.popup_open = True
+            self.showPopup()
+
+
+    def showPopup(self):
+        self.popup = Popup()
+        self.popup.closed.connect(self.popupClosed)
+
+    def popupClosed(self):
+        self.popup_open = False
+        self.overlay_window.not_looking_flag = False
+        self.lookaway_timer = 0
+        self.last_seen_on_screen = True
+        self.lookaway_active = False
+
+
+
 
 class Popup(QMainWindow):
     """Creates popup window."""
+    closed = pyqtSignal()
+
     def __init__(self, message="Time to refocus. Please return to work session.", position=(100, 100)):
         super().__init__()
         self.setGeometry(position[0], position[1], 400, 200)
         self.setWindowTitle("Popup")
 
-        #styles
-
+        # styles
         button_style = """
             QPushButton {
                 background-color: #3a3a3a;
@@ -344,12 +435,18 @@ class Popup(QMainWindow):
         label = QLabel(message, self)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setGeometry(0, 40, 400, 80)
+
         close_button = QPushButton("Close", self)
         close_button.setGeometry(150, 140, 100, 30)
-        close_button.clicked.connect(self.close)
         close_button.setStyleSheet(button_style)
+        close_button.clicked.connect(self.close)
 
         self.show()
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        event.accept()
+
 
 
 if __name__ == '__main__':
