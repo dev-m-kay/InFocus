@@ -16,12 +16,37 @@ class GazeDisplayTracker:
 		self.RELATIVE_SAMPLE_POINTS = [(0.25, 0.20),(0.50, 0.20),(0.75, 0.20),(0.25, 0.50),(0.50, 0.50),(0.75, 0.50),(0.25, 0.80),(0.50, 0.80),(0.75, 0.80)]
 
 		self.last_sample = []
+		self.list_samples = []
+		self.avg_sample = []
 		self.data_points = []
 		self.target_points = []
 
 		self.features = []
 
 		self.hasCalibrated = False
+
+	def average_lists(self, list_of_lists):
+		if not list_of_lists:
+			return []
+
+		# Ensure all inner lists have the same length
+		length = len(list_of_lists[0])
+		if any(len(lst) != length for lst in list_of_lists):
+			raise ValueError("All inner lists must have the same length")
+
+		# Compute element-wise averages
+		avg_list = [sum(elements) / len(elements) for elements in zip(*list_of_lists)]
+		return avg_list
+		
+	def handle_samples(self, samples):
+
+		self.list_samples.append(samples)
+
+		if len(self.list_samples) > 5:
+			self.list_samples.pop(0)
+		
+		self.avg_sample = self.average_lists(self.list_samples)
+
 
 	def generateSamplePoints(self, x_max, y_max):
 		self.x_max = x_max
@@ -37,10 +62,10 @@ class GazeDisplayTracker:
 		return self.sample_points
 
 	def get_sample(self, point_index):
-		if self.last_sample and len(self.last_sample) == 8:
+		if self.avg_sample and len(self.avg_sample) == 8:
 			target_x, target_y = self.sample_points[point_index]
 
-			self.data_points.append(self.last_sample.copy())
+			self.data_points.append(self.avg_sample.copy())
 			self.target_points.append([target_x, target_y])
 		else:
 			print("Warning: invalid sample, skipping")
@@ -57,7 +82,7 @@ class GazeDisplayTracker:
 		self.hasCalibrated = True
 
 	def predict(self):
-		return self.model.predict([self.last_sample])[0]
+		return self.model.predict([self.avg_sample])[0]
 
 	def gaze(self, frame, points):
 
@@ -178,6 +203,8 @@ class GazeDisplayTracker:
 				right_gaze[0] - right_pupil[0],
 				right_gaze[1] - right_pupil[1],
 			]
+
+			self.handle_samples(self.last_sample)
 
 			# Drawing Gaze Line
 			p1 = (int(right_pupil[0]), int(right_pupil[1]))

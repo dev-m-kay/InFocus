@@ -8,7 +8,7 @@ from PyQt6.QtCore import *
 import cv2
 import numpy as np
 from settingsManager import settings as s
-
+import simpleaudio as sa
 from gazeDisplayTracker import GazeDisplayTracker
 from overlay import OverlayWindow
 
@@ -45,6 +45,7 @@ class Main(QMainWindow):
         self.show()
 
         self.gaze_display_tracker.generateSamplePoints(self.overlay_window.width(), self.overlay_window.height())
+        self.beeped = False
         
     
         self.mp_face_mesh = mp.solutions.face_mesh
@@ -385,6 +386,7 @@ class Main(QMainWindow):
             self.last_seen_on_screen = True
             self.lookaway_timer = 0
             self.overlay_window.not_looking_flag = False
+            self.beeped = False
             return
 
         # OFF SCREEN
@@ -392,6 +394,12 @@ class Main(QMainWindow):
             self.lookaway_timer += 1
         else:
             self.lookaway_timer = 1
+
+        if self.lookaway_timer > self.lookaway_seconds and not self.beeped:
+            self.beeped = True
+            wave_obj = sa.WaveObject.from_wave_file("small_ding.wav")
+            wave_obj.play()
+
 
         self.last_seen_on_screen = False
         self.overlay_window.not_looking_flag = True
