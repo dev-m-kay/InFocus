@@ -187,12 +187,6 @@ class Main(QMainWindow):
         row = self.make_row("Ignored Areas: ", self.ignored_setting)
         settings_layout.addWidget(row)
 
-        self.lookaway_seconds = int(self.lookaway_setting.text()) if self.lookaway_setting.text() else 30  
-        self.lookaway_timer = 0
-        self.lookaway_active = False
-        self.popup_open = False
-        self.last_seen_on_screen = True
-
         self.setting_reset = QPushButton("Reset to Default")
         self.setting_reset.clicked.connect(self.resetSettings)
 
@@ -229,6 +223,17 @@ class Main(QMainWindow):
         self.ignored_setting.setCurrentIndex(settings["ignoredAreas"])
         self.cap = cv2.VideoCapture(0)
         self.timer = self.startTimer(30)
+
+        try:
+            self.timer_seconds = int(self.timer_setting.text()) * 60  # convert minutes to seconds
+        except:
+            self.timer_seconds = 30 * 60  # default 30 minutes
+
+        self.lookaway_seconds = int(self.lookaway_setting.text()) if self.lookaway_setting.text() else 30  
+        self.lookaway_timer = 0
+        self.lookaway_active = False
+        self.popup_open = False
+        self.last_seen_on_screen = True
 
         #QTimer.singleShot(5000,self.startCali)
 
@@ -307,16 +312,21 @@ class Main(QMainWindow):
 
 
     def settingsUpdate(self):
-        """Handles changes when settings are updated."""
         settings = {
-            "timer": self.timer_setting.text(),       # minutes
-            "lookaway": self.lookaway_setting.text(), # seconds
+            "timer": self.timer_setting.text(),       
+            "lookaway": self.lookaway_setting.text(), 
             "ignoredAreas": self.ignored_setting.currentIndex(),
         }
         s.write(settings)
         self.settings_panel.setVisible(False)
         self.video_label.parent().setVisible(True)
         self.settings_button.setText("Settings")
+
+        try:
+            self.timer_seconds = int(self.timer_setting.text()) * 60
+        except:
+            self.timer_seconds = 30 * 60
+
 
 
     def resetSettings(self):
@@ -362,6 +372,7 @@ class Main(QMainWindow):
 
         on_screen_now = not (off_left or off_right or off_top or off_bottom)
 
+        # update lookaway_seconds dynamically
         try:
             self.lookaway_seconds = int(self.lookaway_setting.text())
         except:
@@ -376,6 +387,7 @@ class Main(QMainWindow):
             self.overlay_window.not_looking_flag = False
             return
 
+        # OFF SCREEN
         if not self.last_seen_on_screen:
             self.lookaway_timer += 1
         else:
@@ -385,11 +397,15 @@ class Main(QMainWindow):
         self.overlay_window.not_looking_flag = True
         self.overlay_window.update()
 
+        # convert timer ticks (30ms per tick)
         elapsed_seconds = self.lookaway_timer * 0.03
 
-        if elapsed_seconds >= self.lookaway_seconds and not self.popup_open:
+        # --- use the main timer from input (minutes) ---
+        if elapsed_seconds >= self.timer_seconds and not self.popup_open:
             self.popup_open = True
             self.showPopup()
+            self.lookaway_timer = 0  # reset after popup
+
 
 
     def showPopup(self):
