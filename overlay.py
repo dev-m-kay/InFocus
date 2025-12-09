@@ -26,7 +26,7 @@ class OverlayWindow(QWidget):
         self.look_points = []
         self.look_point = QPoint(0,0)
 
-        self.drawLook = True
+        self.drawLook = False
         
         self.sample_index = 0
         self.repeat_index = 0
